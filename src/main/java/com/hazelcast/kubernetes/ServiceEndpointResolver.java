@@ -16,23 +16,12 @@
 
 package com.hazelcast.kubernetes;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.nio.Address;
 import com.hazelcast.nio.IOUtil;
 import com.hazelcast.spi.discovery.DiscoveryNode;
 import com.hazelcast.spi.discovery.SimpleDiscoveryNode;
 import com.hazelcast.util.StringUtil;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.fabric8.kubernetes.api.model.EndpointAddress;
 import io.fabric8.kubernetes.api.model.EndpointSubset;
@@ -42,6 +31,16 @@ import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.ConfigBuilder;
 import io.fabric8.kubernetes.client.DefaultKubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClient;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 class ServiceEndpointResolver extends HazelcastKubernetesDiscoveryStrategy.EndpointResolver {
 
@@ -75,11 +74,14 @@ class ServiceEndpointResolver extends HazelcastKubernetesDiscoveryStrategy.Endpo
 
     @Override
     List<DiscoveryNode> resolve() {
-        if (serviceName != null && !serviceName.isEmpty()) {
+        if (serviceLabel != null && !serviceLabel.isEmpty()) {
+            logger.info( "Retrieving nodes for label { " + serviceLabel +" }" );
+            return getDiscoveryNodes(client.endpoints().inNamespace(namespace).withLabel(serviceLabel, serviceLabelValue).list());
+        } else if (serviceName != null && !serviceName.isEmpty()) {
+            logger.info( "Retrieving nodes for service { " + serviceName +" }" );
           return getSimpleDiscoveryNodes(client.endpoints().inNamespace(namespace).withName(serviceName).get());
-        } else if (serviceLabel != null && !serviceLabel.isEmpty()) {
-          return getDiscoveryNodes(client.endpoints().inNamespace(namespace).withLabel(serviceLabel, serviceLabelValue).list());
         }
+        logger.info( "Retrieving all nodes in namespace" );
         return getNodesByNamespace();
     }
 
@@ -104,6 +106,7 @@ class ServiceEndpointResolver extends HazelcastKubernetesDiscoveryStrategy.Endpo
 
     private List<DiscoveryNode> getSimpleDiscoveryNodes(Endpoints endpoints) {
         if (endpoints == null) {
+            logger.info( "No endpoints found" );
             return Collections.emptyList();
         }
         List<DiscoveryNode> discoveredNodes = new ArrayList<DiscoveryNode>();
@@ -117,6 +120,7 @@ class ServiceEndpointResolver extends HazelcastKubernetesDiscoveryStrategy.Endpo
                 discoveredNodes.add(new SimpleDiscoveryNode(address, properties));
             }
         }
+        logger.info( "Discovered "+ discoveredNodes.size() +" nodes" );
         return discoveredNodes;
     }
 
